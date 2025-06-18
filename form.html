@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Thêm biển số</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 30px;
+            background-color: #f7f7f7;
+        }
+        h2 {
+            color: #333;
+        }
+        input, button {
+            padding: 10px;
+            margin: 8px 0;
+            width: 100%;
+            font-size: 16px;
+        }
+        button {
+            background-color: #28a745;
+            color: white;
+            border: none;
+        }
+        button:hover {
+            background-color: #218838;
+        }
+        .container {
+            max-width: 400px;
+            margin: auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 6px;
+            box-shadow: 0px 0px 10px rgba(0,0,0,0.1);
+        }
+        .message {
+            margin-top: 10px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Thêm biển số mới</h2>
+        <input type="text" id="newPlate" placeholder="Nhập biển số (VD: 29A-12345)" />
+        <input type="number" id="newAmount" placeholder="Nhập số tiền (VD: 100000)" />
+        <button id="addPlateBtn">Thêm vào cơ sở dữ liệu</button>
+        <div class="message" id="message"></div>
+    </div>
+
+    <script>
+        document.getElementById('addPlateBtn').addEventListener('click', () => {
+            const bienso = document.getElementById('newPlate').value.trim();
+            const tien = parseInt(document.getElementById('newAmount').value);
+            const messageEl = document.getElementById('message');
+
+            if (!bienso || isNaN(tien)) {
+                messageEl.textContent = "⚠️ Vui lòng nhập biển số và số tiền hợp lệ.";
+                messageEl.style.color = 'red';
+                return;
+            }
+
+            fetch('http://localhost:5000/add_license_plate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ bienso, tien })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.message) {
+                    messageEl.textContent = "✅ " + data.message;
+                    messageEl.style.color = 'green';
+                } else {
+                    messageEl.textContent = "❌ " + (data.error || "Lỗi không xác định.");
+                    messageEl.style.color = 'red';
+                }
+            })
+            .catch(error => {
+                console.error(error);
+                messageEl.textContent = "❌ Không thể kết nối tới server.";
+                messageEl.style.color = 'red';
+            });
+        });
+    </script>
+</body>
+</html>

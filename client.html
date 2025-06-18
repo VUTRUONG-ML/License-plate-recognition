@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Realtime Video</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            font-family: Arial, sans-serif;
+        }
+
+        body {
+            display: flex;
+            gap: 20px;
+            box-sizing: border-box;
+            padding: 20px;
+        }
+
+        #videoCanvas {
+            border: 2px solid #333;
+            height: 100%;
+            width: 50%;
+            aspect-ratio: 16 / 9;
+            background: #eee;
+        }
+
+        #info {
+            height: 100%;
+            overflow-y: auto;
+            width: 300px;
+            border: 1px solid #ccc;
+            padding: 10px;
+            box-sizing: border-box;
+        }
+
+        .plate {
+            padding: 6px;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #ddd;
+            background: #f9f9f9;
+        }
+
+        .plate strong {
+            color: #007BFF;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="videoCanvas"></canvas>
+
+    <div id="info">
+        <h3>Biển số phát hiện</h3>
+        <div id="plateList"></div>
+        <input type="file" id="videoInput" accept="video/*" />
+        <button id="startProcessing">Bắt đầu Thu Phí</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('videoCanvas');
+        const ctx = canvas.getContext('2d');
+        const plateList = document.getElementById('plateList');
+        const videoInput = document.getElementById('videoInput');
+        const startProcessing = document.getElementById('startProcessing');
+        const socket = io('http://localhost:5000');
+
+        let selectedVideo = null;
+
+        // Lắng nghe sự kiện chọn video
+        videoInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                selectedVideo = file;
+                alert(`Đã chọn video: ${file.name}`);
+            }
+        });
+
+        // Lắng nghe sự kiện nhấn nút "Bắt đầu Thu Phí"
+        startProcessing.addEventListener('click', () => {
+            if (!selectedVideo) {
+                alert('Vui lòng chọn video trước!');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('video', selectedVideo);
+
+            // Gửi video tới API
+            fetch('http://localhost:5000/detect_license_plate', {
+                method: 'POST',
+                body: formData,
+            })
+                .then((response) => {
+                    if (!response.ok) {
+                        throw new Error('Lỗi từ server');
+                    }
+                    return response.json();
+                })
+                .then((data) => {
+                    console.log('Phản hồi từ server:', data);
+                    alert('Đang xử lý video...');
+                })
+                .catch((error) => {
+                    console.error('Lỗi khi gửi video:', error);
+                    alert('Đã xảy ra lỗi khi gửi video.');
+                });
+        });
+
+        // Lắng nghe sự kiện 'video_frame' từ server
+        socket.on('video_frame', (data) => {
+            const img = new Image();
+            const binary = new Uint8Array(data.frame).reduce((data, byte) => data + String.fromCharCode(byte), '');
+            const base64String = btoa(binary);
+
+            img.src = 'data:image/jpeg;base64,' + base64String;
+
+            img.onload = () => {
+                canvas.width = img.width;
+                canvas.height = img.height;
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            };
+        });
+
+        // Lắng nghe sự kiện 'license_plate_detected'
+        socket.on('license_plate_detected', (data) => {
+            const div = document.createElement('div');
+            div.className = 'plate';
+            div.innerHTML = `
+            <strong>ID Xe:</strong> ${data.car_id}<br>
+            <strong>Biển số:</strong> ${data.license_plate}<br>
+            <small>Frame: ${data.frame}, Score: ${data.score.toFixed(2)}</small>
+        `;
+            plateList.prepend(div);
+        });
+
+        // Lắng nghe sự kiện 'processing_complete' từ server
+        socket.on('processing_complete', (data) => {
+            alert(data.message); // Hiển thị thông báo "Video đã được xử lý xong."
+            console.log(data.message);
+
+            // Reset giao diện
+            resetUI();
+        });
+
+        // Hàm reset giao diện
+        function resetUI() {
+            // Xóa nội dung canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Xóa danh sách biển số
+            plateList.innerHTML = '';
+
+            // Reset trạng thái video
+            selectedVideo = null;
+
+            // Hiển thị thông báo yêu cầu chọn video mới
+            alert('Vui lòng chọn video mới để tiếp tục.');
+        }
+    </script>
+</body>
+
+</html>
